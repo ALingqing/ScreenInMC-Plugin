@@ -120,9 +120,20 @@ public class NMSItemStackNew extends NMSItemStack{
         if(CustomModelDataConstructor!=null) CustomModelDataConstructor.setAccessible(true);
         CustomDataClass = CraftUtils.getMinecraftClass("CustomData");
         CompoundTagClass = CraftUtils.getMinecraftClass("CompoundTag");
+        // 优先匹配名为 of 且返回 CustomData 的静态方法（26.x 中 CustomData 类可能有多个静态 (CompoundTag) 方法，其中一个返回 Either，必须区分）
         for(Method i : CustomDataClass.getDeclaredMethods()){
-            if(Modifier.isStatic(i.getModifiers())&&i.getParameterCount()==1&&i.getParameters()[0].getType().equals(CompoundTagClass)){
+            if(Modifier.isStatic(i.getModifiers())&&i.getParameterCount()==1&&i.getParameters()[0].getType().equals(CompoundTagClass)
+                    &&i.getReturnType().equals(CustomDataClass)&&i.getName().equals("of")){
                 CustomDataOf = i;
+            }
+        }
+        if(CustomDataOf==null){
+            // 回退：任意返回 CustomData 的静态 (CompoundTag) 方法
+            for(Method i : CustomDataClass.getDeclaredMethods()){
+                if(Modifier.isStatic(i.getModifiers())&&i.getParameterCount()==1&&i.getParameters()[0].getType().equals(CompoundTagClass)
+                        &&i.getReturnType().equals(CustomDataClass)){
+                    CustomDataOf = i;
+                }
             }
         }
         if(CustomDataOf==null) throw new Exception("public static CustomData of(CompoundTag nbt) not found");

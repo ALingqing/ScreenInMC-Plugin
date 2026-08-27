@@ -99,7 +99,14 @@ public class ConfigPaletteLoader extends PaletteLoader{
     public PaletteLoader get() {
         if(configName.length()==0){
             String[] versions = Bukkit.getVersion().split("\\.");
-            this.configName = versions[0]+"."+versions[1];
+            // 传统格式 "1.20.4-R0.1-SNAPSHOT" -> ["1","20","4-R0..."]
+            // 年份格式 "26.2-R0.1-SNAPSHOT"   -> ["26","2-R0..."]
+            if(versions[0].equals("1")){
+                this.configName = versions[0]+"."+versions[1];
+            }else{
+                // 26.x 等年份版本号：去掉可能的 -R0 等后缀
+                this.configName = versions[0]+"."+versions[1].split("-")[0];
+            }
         }
         return this;
     }

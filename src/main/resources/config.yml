@@ -2,10 +2,17 @@ download-browser-core:
   github-proxy: "https://ghproxy.net/%URL%" #留空为不使用Github代理
   http-proxy: "" #留空为不使用http代理 例: http://127.0.0.1:1080
   jcef-download-url:
-    type: 1 #0:直接下载文件(仅支持.tar.gz)(须手动选择对应系统) 1:下载Github仓库Releases文件(自动选择系统)
+    type: 2 #0:直接下载文件(仅支持.tar.gz)(须手动选择对应系统) 1:下载Github仓库Releases文件(自动选择系统) 2:下载含H.264解码的JCEF(支持B站等视频网站)
     url: "https://github.com/jcefmaven/jcefbuild"
-    system-type: "" #仅在type为1时生效 可设置为: linux-amd64, linux-arm, linux-arm64, macosx-amd64, macosx-arm64, windows-amd64, windows-arm64,windows-i386 留空为自动获取
+    system-type: "linux-amd64" #仅在type为1时生效 当前服务器为 linux amd64 可设置为: linux-amd64, linux-arm, linux-arm64, macosx-amd64, macosx-arm64, windows-amd64, windows-arm64,windows-i386 留空为自动获取
     version: "" #仅在type为1时生效 JCEF版本号(Tags) 留空为自动获取 最新JCEF已不支持32位Linux，需使用1.0.26版本
+    # type=2 (含H.264解码) 时生效。
+    # 留空则回退到 url 指定的普通JCEF构建(不含H.264，无法播放B站等视频)。
+    # 该构建须与JCEF目录结构兼容(bin/jcef.jar, bin/lib/<平台>/libcef等)，且须为 linux-amd64 平台。
+    # 如何制作含H.264的JCEF包: 下载与当前JCEF版本一致的CEF官方Standard Distribution
+    # (https://cef-builds.spotifycdn.com/ ，Standard 含 H.264/AAC)，用其中的 Release/libcef、
+    # Resources 等覆盖 JCEF bin/lib/linux64/ 下的对应文件后重新打包为 .tar.gz 并填写地址。
+    h264-url: ""
 jcef-extra-args: ""
 jcef-transparent: false
 jcef-enable-gpu: false

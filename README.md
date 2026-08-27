@@ -25,7 +25,7 @@ https://github.com/GZY-mingbai/ScreenInMC-Plugin/actions
 使用 MIT 许可证。
 
 # 运行要求: 
-1. 1.8-1.21.1 Bukkit 服务端 (推荐PaperMC) (必须)
+1. 1.8-1.21.x 以及 26.x (26.2等) Bukkit 服务端 (推荐PaperMC) (必须)
 2. OpenCL 支持 (可选)
 3. 64位 Windows 10+ 系统 (可选)
 4. Java 8+ (必须)
@@ -61,7 +61,13 @@ https://github.com/GZY-mingbai/ScreenInMC-Plugin/actions
 若要支持h264解码能力的JCEF(可观看B站等)，需自行下载并覆盖已安装的JCEF(版本不限)
 2. 放置WebBrowser内核的屏幕后，需使用 ScreenInMC 控制器 手动选择安装的核心(若未安装 则不显示)
 3. 若配置正确，且JCEF安装正确，则会出现画面。(已知BUG: 部分网页无法通过点击跳转)
-# 其他功能:
+# 如何支持 B站 等视频网站 (H.264 解码):
+1. 打开 `plugins/ScreenInMC/config.yml`
+2. 将 `download-browser-core.jcef-download-url.type` 设为 `2`（含 H.264 解码模式，默认值）
+3. 在 `download-browser-core.jcef-download-url.h264-url` 填写一个**含 H.264/AAC 解码**的 JCEF 构建 `.tar.gz` 地址（需与 JCEF 目录结构兼容：`bin/jcef.jar`、`bin/lib/<平台>/libcef` 等）
+   - 制作方法：下载与当前 JCEF 版本一致的 CEF 官方 Standard Distribution（https://cef-builds.spotifycdn.com/ ，Standard 版含 H.264/AAC），用其中的 `Release/` 下 `libcef`、`icudtl.dat`、`snapshot_blob.bin`、`natives_blob.bin` 及 `Resources/` 等覆盖 JCEF `bin/lib/<平台>/` 下对应文件，重新打包为 `.tar.gz` 后填入地址
+   - 若留空则回退到普通 JCEF 构建（不含 H.264，无法播放 B 站等）
+4. 重新安装/更新浏览器核心，进入 B 站即可播放（H.264 视频，建议 1080P 及以下以保证流畅）# 其他功能:
 1. 通过java -jar ScreenInMC.jar可使用ScreenInMC CLI，可用于生成像素画视频 (具体功能见控制台输出)  
 ……
 # 采用或相关的开源项目:

@@ -53,6 +53,10 @@ public class NMSItemStackNew extends NMSItemStack{
         }
         if(DataComponentHolderGetComponents==null) throw new Exception("public Object set(DataComponentType dataComponentType, Object t) not found");
         Class ResourceLocationClass = CraftUtils.getMinecraftClass("ResourceLocation");
+        if(ResourceLocationClass==null){
+            // 26.x 起 Mojang 将 ResourceLocation 改名为 Identifier
+            ResourceLocationClass = CraftUtils.getMinecraftClass("Identifier");
+        }
         try {
             ResourceLocationConstructor = ResourceLocationClass.getDeclaredConstructor(String.class);
         }catch (Exception e){

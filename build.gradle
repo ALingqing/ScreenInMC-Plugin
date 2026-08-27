@@ -30,7 +30,7 @@ dependencies {
     implementation project(path: ':src:main:LibrariesLoader')
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-    compileOnly 'org.spigotmc:spigot-api:1.13-R0.1-SNAPSHOT'
+    compileOnly 'org.spigotmc:spigot-api:1.16.5-R0.1-SNAPSHOT'
     compileOnly 'io.netty:netty-all:4.0.23.Final'
     implementation 'com.shinyhut:vernacular:1.14'
     implementation 'org.apache.commons:commons-compress:1.22'

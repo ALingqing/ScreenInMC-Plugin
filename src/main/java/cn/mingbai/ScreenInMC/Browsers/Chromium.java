@@ -67,6 +67,15 @@ public class Chromium extends Browser {
             case 0:
                 downloadUrl = Main.getConfiguration().getString("download-browser-core.jcef-download-url.url");
                 break;
+            case 2:
+                // 含 H.264/AAC 解码的 JCEF 构建，用于支持 B 站等视频网站。
+                // 若未配置 h264-url，则回退到 type=1 的普通构建。
+                downloadUrl = Main.getConfiguration().getString("download-browser-core.jcef-download-url.h264-url");
+                if (downloadUrl == null || downloadUrl.trim().length() == 0) {
+                    Main.getPluginLogger().warning("download-browser-core.jcef-download-url.h264-url 未配置，回退到普通 JCEF 构建 (不含 H.264 解码，无法播放 B 站等视频)。");
+                    downloadUrl = Main.getConfiguration().getString("download-browser-core.jcef-download-url.url");
+                }
+                break;
             case 1:
                 //https://github.com/jcefmaven/jcefbuild
                 String githubProxyUrl = Main.getConfiguration().getString("download-browser-core.github-proxy");
@@ -343,6 +352,14 @@ public class Chromium extends Browser {
             argsList.add("--universal-access-from-file-urls-allowed");
             if(libSystemName.contains("linux")){
                 argsList.add("--no-sandbox");
+            }
+            // 启用 H.264 等专有媒体解码 (type=2 含 H.264 的 JCEF 构建)。
+            // 对不含解码器的构建此参数无副作用，因此默认总是加上。
+            int downloadType = Main.getConfiguration().getInt("download-browser-core.jcef-download-url.type");
+            if(downloadType==2){
+                argsList.add("--enable-media-codecs");
+                argsList.add("--enable-features=PlatformHEVCDecoderSupport");
+                argsList.add("--autoplay-policy=no-user-gesture-required");
             }
             argsList.addAll(Arrays.asList(Main.getConfiguration().getString("jcef-extra-args").split(" ")));
             String[] args = argsList.toArray(new String[0]);

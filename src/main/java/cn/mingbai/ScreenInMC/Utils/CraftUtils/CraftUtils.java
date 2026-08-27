@@ -73,14 +73,35 @@ public class CraftUtils {
     }
     public static Class CraftRegistryClass;
     public static void init() throws Exception{
-            for(int i=8;i<30;i++) {
-                if (Bukkit.getBukkitVersion().contains("1."+i)) {
-                    minecraftVersion = i;
-                }
+            // 解析 Minecraft 版本号。
+            // 传统版本号格式: 1.20.4  (major=1, minor=20, patch=4) -> minecraftVersion=20, subMinecraftVersion=4
+            // 新年份版本号格式: 26.2   (major=26, minor=2)            -> minecraftVersion=26, subMinecraftVersion=2
+            // (Paper 26.2 起 Mojang 将 Java 版版本号切换为年份制，详见 https://jd.papermc.io/paper/26.2/)
+            String versionSource = null;
+            try {
+                // Paper 提供的 Bukkit.getMinecraftVersion() 最可靠，但它不是 Spigot API，需反射调用
+                java.lang.reflect.Method getMinecraftVersion = Bukkit.class.getMethod("getMinecraftVersion");
+                versionSource = (String) getMinecraftVersion.invoke(null);
+            }catch (Exception ignored) {
             }
-            for(int i=0;i<20;i++){
-                if (Bukkit.getBukkitVersion().contains("1."+minecraftVersion+"."+i)) {
-                    subMinecraftVersion = i;
+            if(versionSource==null||versionSource.trim().isEmpty()){
+                versionSource = Bukkit.getBukkitVersion(); // 例如 "1.20.4-R0.1-SNAPSHOT" 或 "26.2-R0.1-SNAPSHOT"
+            }
+            java.util.regex.Matcher versionMatcher = java.util.regex.Pattern.compile("(\\d+)\\.(\\d+)").matcher(versionSource);
+            if(versionMatcher.find()){
+                int major = Integer.parseInt(versionMatcher.group(1));
+                int minor = Integer.parseInt(versionMatcher.group(2));
+                if(major==1){
+                    // 传统 1.x.y 格式
+                    minecraftVersion = minor;
+                    java.util.regex.Matcher subMatcher = java.util.regex.Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)").matcher(versionSource);
+                    if(subMatcher.find()){
+                        subMinecraftVersion = Integer.parseInt(subMatcher.group(3));
+                    }
+                }else{
+                    // 新年份版本号格式 (26.2 等)
+                    minecraftVersion = major;
+                    subMinecraftVersion = minor;
                 }
             }
             String[] craftBukkitSubClasses = getSubClasses(craftBukkit);

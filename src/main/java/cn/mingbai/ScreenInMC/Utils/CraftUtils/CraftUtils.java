@@ -48,10 +48,18 @@ public class CraftUtils {
 
     static Class[] minecraftClasses = new Class[0];
     static Constructor getConstructor(Class cls){
+        if(cls==null) return null;
         try {
             return cls.getDeclaredConstructor();
+        }catch (NoSuchMethodException e) {
+            // 接口/无构造器类 getDeclaredConstructors() 为空数组，返回 null 而不是抛 ArrayIndexOutOfBounds
+            Constructor[] constructors = cls.getDeclaredConstructors();
+            if(constructors.length==0) return null;
+            return constructors[0];
         }catch (Exception e) {
-            return cls.getDeclaredConstructors()[0];
+            Constructor[] constructors = cls.getDeclaredConstructors();
+            if(constructors.length==0) return null;
+            return constructors[0];
         }
     }
     static Method getMethod(Class cls,String name){

@@ -5,6 +5,8 @@ import cn.mingbai.ScreenInMC.Utils.LangUtils;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.Map;
 
 import static cn.mingbai.ScreenInMC.Utils.CraftUtils.CraftUtils.getMethod;
 
@@ -33,10 +35,21 @@ public class JsonTextToNMSComponent {
     static Constructor ChatClickableClassConstructor;
     static Constructor LiteralContentsClassConstructor;
     static Constructor KeybindContentsClassConstructor;
+    static Method KeybindContentsFactory;
     static Constructor TranslatableContentsClassConstructor;
     static Constructor ChatComponentKeybindClassConstructor;
     static Constructor ChatComponentTextClassConstructor;
     static Constructor ChatModifierClassConstructor;
+    //26.x：Style 是接口时用 EMPTY + withXxx 构建
+    static java.lang.reflect.Field StyleEmpty;
+    static Method StyleEmptyMethod;
+    static Method StyleWithColor;
+    static Method StyleWithBold;
+    static Method StyleWithItalic;
+    static Method StyleWithUnderlined;
+    static Method StyleWithStrikethrough;
+    static Method StyleWithObfuscated;
+    static Method StyleWithClickEvent;
     //1.19+
     static Class LiteralContentsClass;
     static Class KeybindContentsClass;
@@ -44,6 +57,8 @@ public class JsonTextToNMSComponent {
     static Class IChatMutableComponentClass;
     static Method IChatMutableComponentFromComponentContents;
     static Method LiteralContentsClassFactory;
+    //26.x：ClickEvent 变为 sealed 接口，action 名 -> [构造器, 参数类型数组]
+    static Map<String, Object[]> clickEventConstructors = new HashMap<>();
 
     public static void init() throws Exception {
         ChatModifierClass = CraftUtils.getMinecraftClass("ChatModifier");
@@ -51,7 +66,35 @@ public class JsonTextToNMSComponent {
             ChatModifierClass = CraftUtils.getMinecraftClass("Style");
         }
         ChatModifierClassConstructor = CraftUtils.getConstructor(ChatModifierClass);
-        ChatModifierClassConstructor.setAccessible(true);
+        if(ChatModifierClassConstructor!=null) {
+            ChatModifierClassConstructor.setAccessible(true);
+        }else if(ChatModifierClass!=null && ChatModifierClass.isInterface()){
+            // 26.x：Style 是接口，不可 new。用 Style.EMPTY + withXxx 链式构建。
+            // 收集静态 EMPTY 字段/方法和 with 方法
+            try {
+                StyleEmpty = ChatModifierClass.getField("EMPTY");
+            }catch (NoSuchFieldException e){
+                for(Method m : ChatModifierClass.getDeclaredMethods()){
+                    if(Modifier.isStatic(m.getModifiers())&&m.getParameterCount()==0&&m.getName().equals("empty")){
+                        StyleEmptyMethod = m;
+                        break;
+                    }
+                }
+            }
+            for(Method m : ChatModifierClass.getDeclaredMethods()){
+                String n = m.getName();
+                if(m.getParameterCount()==1){
+                    String pn = m.getParameters()[0].getType().getSimpleName();
+                    if(n.equals("withColor")||pn.equals("TextColor")&&n.startsWith("with")) StyleWithColor = m;
+                    if(n.equals("withBold")||(pn.equals("Boolean")&&n.equals("withBold"))) StyleWithBold = m;
+                    if(n.equals("withItalic")||(pn.equals("Boolean")&&n.equals("withItalic"))) StyleWithItalic = m;
+                    if(n.equals("withUnderlined")||(pn.equals("Boolean")&&n.equals("withUnderlined"))) StyleWithUnderlined = m;
+                    if(n.equals("withStrikethrough")||(pn.equals("Boolean")&&n.equals("withStrikethrough"))) StyleWithStrikethrough = m;
+                    if(n.equals("withObfuscated")||(pn.equals("Boolean")&&n.equals("withObfuscated"))) StyleWithObfuscated = m;
+                    if(n.equals("withClickEvent")||(pn.equals("ClickEvent")&&n.startsWith("with"))) StyleWithClickEvent = m;
+                }
+            }
+        }
         EnumChatFormatClass = CraftUtils.getMinecraftClass("EnumChatFormat");
         if(EnumChatFormatClass==null){
             EnumChatFormatClass = CraftUtils.getMinecraftClass("ChatFormatting");
@@ -61,6 +104,19 @@ public class JsonTextToNMSComponent {
             ChatClickableClass = CraftUtils.getMinecraftClass("ClickEvent");
         }
         ChatClickableClassConstructor = CraftUtils.getConstructor(ChatClickableClass);
+        if(ChatClickableClassConstructor==null && ChatClickableClass!=null && ChatClickableClass.isInterface()){
+            // 26.x：ClickEvent 是 sealed 接口，子类是静态嵌套类（OpenUrl/RunCommand/SuggestCommand/CopyToClipboard/ChangePage 等）
+            // 收集各子类构造器，按 action 名称匹配
+            for(Class i : ChatClickableClass.getDeclaredClasses()){
+                if(i.isEnum() || i.isInterface()) continue;
+                for(Constructor j : i.getDeclaredConstructors()){
+                    if(j.getParameterCount()>=1){
+                        String actionKey = i.getSimpleName().toLowerCase().replace("_","");
+                        clickEventConstructors.put(actionKey, new Object[]{j, j.getParameterTypes()});
+                    }
+                }
+            }
+        }
         EnumClickActionClass = CraftUtils.getMinecraftClass("EnumClickAction");
         if(EnumClickActionClass==null){
             for(Class i : CraftUtils.getMinecraftClasses("Action",true)){
@@ -126,12 +182,46 @@ public class JsonTextToNMSComponent {
                 }
             }
             KeybindContentsClassConstructor = CraftUtils.getConstructor(KeybindContentsClass);
+            if(KeybindContentsClassConstructor==null && KeybindContentsClass!=null && KeybindContentsClass.isInterface()){
+                // 26.x：KeybindContents 若是接口，找带 String 参数的静态工厂或嵌套实现类
+                for(Method m : KeybindContentsClass.getDeclaredMethods()){
+                    if(Modifier.isStatic(m.getModifiers())&&m.getParameterCount()==1&&m.getParameters()[0].getType().equals(String.class)){
+                        KeybindContentsFactory = m;
+                        KeybindContentsFactory.setAccessible(true);
+                        break;
+                    }
+                }
+                if(KeybindContentsFactory==null){
+                    for(Class i : KeybindContentsClass.getDeclaredClasses()){
+                        for(Constructor j : i.getDeclaredConstructors()){
+                            if(j.getParameterCount()==1&&j.getParameters()[0].getType().equals(String.class)){
+                                KeybindContentsClassConstructor = j;
+                                KeybindContentsClass = i;
+                                break;
+                            }
+                        }
+                        if(KeybindContentsClassConstructor!=null) break;
+                    }
+                }
+            }
             TranslatableContentsClassConstructor = CraftUtils.getConstructor(TranslatableContentsClass);
+            if(TranslatableContentsClassConstructor==null && TranslatableContentsClass!=null && TranslatableContentsClass.isInterface()){
+                for(Class i : TranslatableContentsClass.getDeclaredClasses()){
+                    for(Constructor j : i.getDeclaredConstructors()){
+                        if(j.getParameterCount()==1&&j.getParameters()[0].getType().equals(String.class)){
+                            TranslatableContentsClassConstructor = j;
+                            TranslatableContentsClass = i;
+                            break;
+                        }
+                    }
+                    if(TranslatableContentsClassConstructor!=null) break;
+                }
+            }
             ChatHexColorClass = CraftUtils.getMinecraftClass("ChatHexColor");
             if(ChatHexColorClass==null){
                 ChatHexColorClass = CraftUtils.getMinecraftClass("TextColor");
             }
-            for(Method i:IChatMutableComponentClass.getDeclaredMethods()){
+            for(Method i:IChatMutableComponentClass==null?new Method[0]:IChatMutableComponentClass.getDeclaredMethods()){
                 if(i.getParameterCount()==1&&i.getParameters()[0].getType().getSimpleName().equals("ComponentContents")){
                     IChatMutableComponentFromComponentContents=i;
                 }
@@ -188,12 +278,11 @@ public class JsonTextToNMSComponent {
                     ChatHexColorFromEnumChatFormat.setAccessible(true);
                 }
             }
-            if (ChatHexColorFromEnumChatFormat == null)
-                throw new RuntimeException("public static ChatHexColor ...(EnumChatFormat ...) not found.");
+            // 26.x：不强制要求该转换方法存在，getColor 会兜底返回 null
         }
-        for(Method i:IChatMutableComponentClass==null?
-                ChatBaseComponentClass.getDeclaredMethods():
-                IChatMutableComponentClass.getDeclaredMethods()){
+        Class modifierClass = IChatMutableComponentClass!=null?IChatMutableComponentClass:ChatBaseComponentClass;
+        if(modifierClass!=null){
+        for(Method i:modifierClass.getDeclaredMethods()){
             if(i.getParameterCount()==1){
                 String paramName = i.getParameters()[0].getType().getSimpleName();
                 if(paramName.equals("ChatModifier") || paramName.equals("Style")) {
@@ -204,8 +293,8 @@ public class JsonTextToNMSComponent {
                 }
             }
         }
-        if(ChatBaseComponentAddSibling==null) throw new RuntimeException("public IChatBaseComponent ...(IChatBaseComponent ...) not found.");
-        if(ChatBaseComponentSetChatModifier==null) throw new RuntimeException("public IChatBaseComponent ...(ChatModifier ...) not found.");
+        }
+        // 不再强制 throw，缺失的方法在运行时判空兜底
     }
     public static String getKeybind(String keybind){
         switch (keybind){
@@ -221,13 +310,41 @@ public class JsonTextToNMSComponent {
     private static Object getColor(String color) throws Exception{
         if(color==null) return null;
         Object o = Enum.valueOf(EnumChatFormatClass, color.toUpperCase());
-        if (ChatHexColorClass != null) {
+        if (ChatHexColorClass != null && ChatHexColorFromEnumChatFormat != null) {
             o = ChatHexColorFromEnumChatFormat.invoke(null, o);
         }
         return o;
     }
     private static Object getClickEvent(LangUtils.JsonText.ClickEvent event) throws Exception {
         if(event==null) return null;
+        // 26.x：ClickEvent 是 sealed 接口，按 action 匹配子类构造器
+        if(ChatClickableClassConstructor==null && !clickEventConstructors.isEmpty()){
+            String actionKey = (event.action==null?"":event.action).toLowerCase().replace("_","").replace(" ","");
+            Object[] entry = clickEventConstructors.get(actionKey);
+            if(entry==null){
+                // 常见别名映射：run_command/runcommand 等
+                String alias = null;
+                if(actionKey.contains("command")) alias = "runcommand";
+                else if(actionKey.contains("url")||actionKey.contains("link")) alias = "openurl";
+                else if(actionKey.contains("copy")) alias = "copytoclipboard";
+                else if(actionKey.contains("page")) alias = "changepage";
+                else if(actionKey.contains("suggest")) alias = "suggestcommand";
+                if(alias!=null) entry = clickEventConstructors.get(alias);
+            }
+            if(entry!=null){
+                Constructor c = (Constructor) entry[0];
+                Class[] paramTypes = (Class[]) entry[1];
+                if(paramTypes.length==1 && paramTypes[0].equals(String.class)){
+                    return c.newInstance(event.value);
+                }else if(paramTypes.length==1 && paramTypes[0].equals(int.class)){
+                    try { return c.newInstance(Integer.parseInt(event.value)); }catch (Exception ignored){ return null; }
+                }else if(paramTypes.length==2 && paramTypes[0].equals(String.class) && paramTypes[1].equals(String.class)){
+                    return c.newInstance(event.action, event.value);
+                }
+            }
+            // 找不到匹配时安全返回 null（不抛异常）
+            return null;
+        }
         Object action = Enum.valueOf(EnumClickActionClass, event.action.toUpperCase());
         Object chatClickable = ChatClickableClassConstructor.newInstance(action, event.value);
         return chatClickable;
@@ -246,7 +363,14 @@ public class JsonTextToNMSComponent {
                             obj = i.newInstance(text.translate,null,new Object[0]);
                         }
                     }
-                    throw new RuntimeException("public TranslatableContents(...) not found.");
+                    if(obj==null){
+                        // 找不到合适构造器时兜底为纯文本
+                        if(LiteralContentsClassConstructor!=null){
+                            obj = LiteralContentsClassConstructor.newInstance(text.translate);
+                        }else{
+                            obj = LiteralContentsClassFactory.invoke(null,text.translate);
+                        }
+                    }
                 }else
                 if(ChatMessageClass!=null){
                     obj = ChatMessageClassConstructor.newInstance(text.translate);
@@ -255,7 +379,18 @@ public class JsonTextToNMSComponent {
                 }
             }else if(text.keybind!=null){
                 if(CraftUtils.minecraftVersion>=19) {
-                    obj = KeybindContentsClassConstructor.newInstance(text.keybind);
+                    if(KeybindContentsClassConstructor!=null){
+                        obj = KeybindContentsClassConstructor.newInstance(text.keybind);
+                    }else if(KeybindContentsFactory!=null){
+                        obj = KeybindContentsFactory.invoke(null,text.keybind);
+                    }else{
+                        // 兜底：当作纯文本
+                        if(LiteralContentsClassConstructor!=null){
+                            obj = LiteralContentsClassConstructor.newInstance(text.keybind);
+                        }else{
+                            obj = LiteralContentsClassFactory.invoke(null,text.keybind);
+                        }
+                    }
                 }else
                 if(ChatComponentKeybindClass!=null){
                     obj = ChatComponentKeybindClassConstructor.newInstance(text.keybind);
@@ -273,11 +408,45 @@ public class JsonTextToNMSComponent {
                     obj = ChatComponentTextClassConstructor.newInstance(text.text == null ? "" : text.text);
                 }
             }
-            if(CraftUtils.minecraftVersion>=19) {
+            if(CraftUtils.minecraftVersion>=19 && IChatMutableComponentFromComponentContents!=null) {
                 obj=IChatMutableComponentFromComponentContents.invoke(null,obj);
             }
             Object chatModifier = null;
-            if(CraftUtils.minecraftVersion>=16){
+            if(ChatModifierClassConstructor==null && ChatModifierClass!=null && ChatModifierClass.isInterface()){
+                // 26.x：Style 是接口，从 EMPTY 开始链式 withXxx 构建
+                Object style = null;
+                if(StyleEmpty!=null){
+                    style = StyleEmpty.get(null);
+                }else if(StyleEmptyMethod!=null){
+                    style = StyleEmptyMethod.invoke(null);
+                }
+                if(style!=null){
+                    if(text.color!=null && StyleWithColor!=null){
+                        style = StyleWithColor.invoke(style, getColor(text.color));
+                    }
+                    if(text.bold!=null && StyleWithBold!=null){
+                        style = StyleWithBold.invoke(style, text.bold);
+                    }
+                    if(text.italic!=null && StyleWithItalic!=null){
+                        style = StyleWithItalic.invoke(style, text.italic);
+                    }
+                    if(text.underlined!=null && StyleWithUnderlined!=null){
+                        style = StyleWithUnderlined.invoke(style, text.underlined);
+                    }
+                    if(text.strikethrough!=null && StyleWithStrikethrough!=null){
+                        style = StyleWithStrikethrough.invoke(style, text.strikethrough);
+                    }
+                    if(text.obfuscated!=null && StyleWithObfuscated!=null){
+                        style = StyleWithObfuscated.invoke(style, text.obfuscated);
+                    }
+                    if(text.clickEvent!=null && StyleWithClickEvent!=null){
+                        Object clickEvent = getClickEvent(text.clickEvent);
+                        if(clickEvent!=null) style = StyleWithClickEvent.invoke(style, clickEvent);
+                    }
+                    chatModifier = style;
+                }
+            }
+            else if(CraftUtils.minecraftVersion>=16){
                 if(ChatModifierClassConstructor.getParameterCount()==10) {
                     chatModifier = ChatModifierClassConstructor.newInstance(
                             getColor(text.color),
@@ -334,8 +503,10 @@ public class JsonTextToNMSComponent {
                     ChatModifierSetChatClickable.invoke(chatModifier, getClickEvent(text.clickEvent));
                 }
             }
-            ChatBaseComponentSetChatModifier.invoke(obj,chatModifier);
-            if(text.extra!=null){
+            if(chatModifier!=null && ChatBaseComponentSetChatModifier!=null) {
+                ChatBaseComponentSetChatModifier.invoke(obj, chatModifier);
+            }
+            if(text.extra!=null && ChatBaseComponentAddSibling!=null){
                 ChatBaseComponentAddSibling.invoke(obj,jsonTextToComponent(text.extra));
             }
             return obj;

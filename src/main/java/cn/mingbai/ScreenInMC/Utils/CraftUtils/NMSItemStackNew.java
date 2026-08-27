@@ -95,9 +95,41 @@ public class NMSItemStackNew extends NMSItemStack{
         }
         ItemLoreConstructor.setAccessible(true);
         UnbreakableClass = CraftUtils.getMinecraftClass("Unbreakable");
-        UnbreakableConstructor = UnbreakableClass.getDeclaredConstructor(boolean.class);
+        if(UnbreakableClass!=null){
+            try {
+                UnbreakableConstructor = UnbreakableClass.getDeclaredConstructor(boolean.class);
+            }catch (NoSuchMethodException e){
+                UnbreakableConstructor = null;
+            }
+        }else{
+            // 26.x：unbreakable 变为 NonValued 组件（存在即 true），值用 Unit.INSTANCE 单例
+            UnbreakableConstructor = null;
+            try {
+                Class unitClass = CraftUtils.getMinecraftClass("Unit");
+                if(unitClass==null){
+                    for(Class c : CraftUtils.minecraftClasses){
+                        if(c.getName().equals("net.minecraft.util.Unit")) { unitClass = c; break; }
+                    }
+                }
+                if(unitClass!=null){
+                    java.lang.reflect.Field inst = unitClass.getField("INSTANCE");
+                    inst.setAccessible(true);
+                    UnbreakableUnitInstance = inst.get(null);
+                }
+            }catch (Exception ignored){}
+        }
         CustomModelDataClass = CraftUtils.getMinecraftClass("CustomModelData");
-        CustomModelDataConstructor = CustomModelDataClass.getDeclaredConstructor(int.class);
+        try {
+            CustomModelDataConstructor = CustomModelDataClass.getDeclaredConstructor(int.class);
+        }catch (NoSuchMethodException e){
+            // 26.x: CustomModelData 是 (FloatList floats, BooleanList flags, List<String> strings, IntList colors)
+            try {
+                CustomModelDataConstructor = CustomModelDataClass.getDeclaredConstructor(List.class,List.class,List.class,List.class);
+            }catch (NoSuchMethodException e2){
+                CustomModelDataConstructor = null;
+            }
+        }
+        if(CustomModelDataConstructor!=null) CustomModelDataConstructor.setAccessible(true);
         CustomDataClass = CraftUtils.getMinecraftClass("CustomData");
         CompoundTagClass = CraftUtils.getMinecraftClass("CompoundTag");
         for(Method i : CustomDataClass.getDeclaredMethods()){
@@ -133,8 +165,19 @@ public class NMSItemStackNew extends NMSItemStack{
                 CustomModelDataValue.setAccessible(true);
             }
         }
-        NMSMapNew.init();
-        NMSBookNew.init();
+        if(CustomModelDataValue==null){
+            // 26.x: CustomModelData 无 int 字段，第一个 float 列表字段即 floats
+            for(Field i : CustomModelDataClass.getDeclaredFields()){
+                if(java.util.Collection.class.isAssignableFrom(i.getType()) || i.getType().getSimpleName().contains("FloatList") || i.getType().getSimpleName().contains("List")){
+                    CustomModelDataValue = i;
+                    CustomModelDataValue.setAccessible(true);
+                    break;
+                }
+            }
+        }
+        // NMSMapNew / NMSBookNew 独立容错：一个失败不影响 NMSItemStackNew 基础功能
+        try { NMSMapNew.init(); }catch (Throwable t){ CraftUtils.LOGGER.warning("ScreenInMC NMSMapNew.init() failed: "+t); }
+        try { NMSBookNew.init(); }catch (Throwable t){ CraftUtils.LOGGER.warning("ScreenInMC NMSBookNew.init() failed: "+t); }
     }
     static Field CustomDataTag;
     static Field CustomModelDataValue;
@@ -148,6 +191,7 @@ public class NMSItemStackNew extends NMSItemStack{
     static Class CustomModelDataClass;
     static Constructor UnbreakableConstructor;
     static Class UnbreakableClass;
+    static Object UnbreakableUnitInstance; // 26.x: unbreakable 是 NonValued 组件，值为 Unit.INSTANCE
     static Constructor ItemLoreConstructor;
     static Class ItemLoreClass;
     static Object LoreDataComponentType;
@@ -203,9 +247,23 @@ public class NMSItemStackNew extends NMSItemStack{
                     PatchedDataComponentMapSet.invoke(patchedDataComponentMap,LoreDataComponentType,ItemLoreConstructor.newInstance(lores));
                 }
             }
-            PatchedDataComponentMapSet.invoke(patchedDataComponentMap,UnbreakableDataComponentType,UnbreakableConstructor.newInstance(unbreakable));
-            if(customModelData!=null){
-                PatchedDataComponentMapSet.invoke(patchedDataComponentMap,CustomModelDataDataComponentType,CustomModelDataConstructor.newInstance((int)customModelData));
+            if(UnbreakableConstructor!=null){
+                PatchedDataComponentMapSet.invoke(patchedDataComponentMap,UnbreakableDataComponentType,UnbreakableConstructor.newInstance(unbreakable));
+            }else if(UnbreakableUnitInstance!=null && unbreakable){
+                // 26.x: NonValued 组件，存在即 true
+                PatchedDataComponentMapSet.invoke(patchedDataComponentMap,UnbreakableDataComponentType,UnbreakableUnitInstance);
+            }
+            if(customModelData!=null && CustomModelDataConstructor!=null){
+                Object cmd;
+                if(CustomModelDataConstructor.getParameterCount()==1){
+                    cmd = CustomModelDataConstructor.newInstance((int)customModelData);
+                }else{
+                    // 26.x: (FloatList floats, BooleanList flags, List<String> strings, IntList colors)
+                    java.util.ArrayList<Float> floats = new java.util.ArrayList<>();
+                    floats.add(((Number)customModelData).floatValue());
+                    cmd = CustomModelDataConstructor.newInstance(floats,new java.util.ArrayList<>(),new java.util.ArrayList<>(),new java.util.ArrayList<>());
+                }
+                PatchedDataComponentMapSet.invoke(patchedDataComponentMap,CustomModelDataDataComponentType,cmd);
             }
             if(name!=null){
                 PatchedDataComponentMapSet.invoke(patchedDataComponentMap,NameDataComponentType,name.toComponent());
@@ -255,7 +313,19 @@ public class NMSItemStackNew extends NMSItemStack{
             if(customModelData==null){
                 return 0;
             }
-            return (int) CustomModelDataValue.get(customModelData);
+            if(CustomModelDataValue.getType().equals(int.class)){
+                return (int) CustomModelDataValue.get(customModelData);
+            }
+            // 26.x: 读取 floats 列表第一个值
+            Object floats = CustomModelDataValue.get(customModelData);
+            if(floats instanceof java.util.Collection){
+                java.util.Collection col = (java.util.Collection) floats;
+                if(!col.isEmpty()){
+                    Object first = col.iterator().next();
+                    if(first instanceof Number) return ((Number) first).intValue();
+                }
+            }
+            return 0;
         }catch (Exception e){
             throw new RuntimeException(e);
         }

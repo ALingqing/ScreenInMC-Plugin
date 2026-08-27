@@ -1,0 +1,172 @@
+start-download-chromium-core: "開始下載Chromium核心"
+download-progress: "已下載 %%"
+download-success: "下載完成"
+decompress-progress: "已解壓縮 %%"
+decompress-success: "解壓縮完成"
+uninstalling: "卸載中"
+kb-basic: "基礎鍵盤:"
+controller-item-name: "ScreenInMC 控制器"
+controller-item-now-mode: "目前模式:"
+controller-item-select-mode: "框選模式"
+controller-item-place-mode: "放置模式"
+controller-item-edit-mode: "編輯模式"
+controller-item-connect-mode: "連接模式"
+controller-item-unknown-mode: "未知模式"
+controller-block-not-found: "找不到可用的方塊"
+controller-selection-not-found: "找不到可用的區域"
+controller-set-point-start: "已設定顯示器起點 (%%)"
+controller-point-start: "起點 (%%)"
+controller-points-different-worlds: "起點和終點不在同一個世界"
+controller-set-point-end: "已設定顯示器終點 (%%)"
+controller-point-end: "終點 (%%)"
+controller-mode-info: |-
+  目前模式: %now-mode%
+  使用 %sneak%+滾輪 來切換模式
+controller-select-mode-info: |-
+  使用 %left-click% 來選取第一個角落
+  使用 %right-click% 來選取第二個角落
+  第一個角落和第二個角落必須在同一平面上
+  框選區域不能超過 %max-size%
+controller-place-mode-info: |-
+  先使用 框選模式 選擇一個區域
+  再在該模式下使用 %right-click% 點擊選擇的區域
+  即可放置一塊屏幕
+controller-edit-mode-info: |-
+  在該模式下使用 %right-click% 點擊一塊屏幕
+  即可編輯屏幕設置
+controller-connect-mode-info: |-
+  在該模式下使用 %right-click% 點擊一塊紅石中繼器
+  即可將屏幕連接到該紅石中繼器
+controller-connect-start: "使用 %right-click% 點擊一塊紅石中繼器"
+controller-connect-success: "連接成功"
+controller-connect-failed-input: "連接失敗: 該紅石中繼器已被連接為輸入端"
+controller-connect-failed-output: "連接失敗: 該紅石中繼器已被連接為輸出端"
+controller-place-start: "正在載入屏幕核心"
+controller-place-success: "已放置屏幕在 %location% 方向: %facing% 大小: %size%"
+controller-place-failed-facing-not-supported: "無法將屏幕放置在 %% 方向"
+controller-editor-gui-title: "ScreenInMC 編輯器"
+vnc-client-address: "位址"
+vnc-client-password: "密碼"
+vnc-client-connect: "連線"
+facing-up: "上"
+facing-down: "下"
+facing-east: "東"
+facing-south: "南"
+facing-west: "西"
+facing-north: "北"
+welcome-text: "歡迎使用ScreenInMC 請選擇一個核心"
+left-click: "左鍵"
+middle-click: "中鍵"
+right-click: "右鍵"
+current-selection: "目前選擇"
+controller-editor-title: "ScreenInMC 顯示器"
+controller-editor-id: "屏幕ID: "
+controller-editor-location: "屏幕位置: "
+controller-editor-facing: "屏幕方向: "
+controller-editor-size: "屏幕尺寸: "
+controller-editor-core: "屏幕核心: "
+controller-editor-clicked: "點擊屬性: "
+controller-editor-replace-core-title: "更換核心"
+controller-editor-replace-core-info: "點擊以更換顯示器核心"
+controller-editor-redstone-connect-title: "連接紅石中繼器"
+controller-editor-redstone-remove-title: "刪除螢幕"
+controller-editor-redstone-connect-info: "點擊來設置紅石與顯示器之間的連接"
+controller-editor-redstone-connect-not-supported: "此顯示器核心不支援紅石連接"
+controller-editor-previous-page: "上一頁"
+controller-editor-next-page: "下一頁"
+controller-editor-all-page: "第%now%頁 (共%all%頁)"
+controller-editor-cores-vnc-name: "VNC 客戶端"
+controller-editor-cores-vnc-details: |-
+  可用於訪問和控制遠端計算機
+  透過VNC協議與遠端計算機進行通訊
+  只需要IP位址和密碼(可選)，即可連接VNC伺服器
+  支援VNC協議3.3-3.8 (使用Vernacular VNC庫)
+controller-editor-cores-browser-name: "網頁瀏覽器"
+controller-editor-cores-browser-details: |-
+  可用於訪問互聯網網頁或本地網頁。
+  (URI: screen://local/文件名
+  可用於讀取 plugins/ScreenInMC/Files/ 中的檔案)
+controller-editor-cores-image-viewer-name: "圖片檢視器"
+controller-editor-cores-image-viewer-details: |-
+  可用於檢視圖片（支援動圖）
+  (URI: screen://local/文件名
+  可用於讀取 plugins/ScreenInMC/Files/ 中的檔案)
+controller-editor-cores-image-viewer-uri: "圖片連結 (URI)"
+controller-editor-cores-scale-mode: "縮放模式"
+controller-editor-cores-scale-algorithm: "縮放演算法"
+controller-editor-cores-scale-algorithms: "平滑|快速|插值(Lanczos)"
+controller-editor-cores-browser-uri: "目前網址 (URI)"
+controller-editor-cores-browser-refresh: "重新整理(選擇true)"
+controller-editor-cores-browser-core: "瀏覽器核心"
+controller-editor-cores-browser-devtools: "開啟開發者模式 (DevTools)"
+controller-editor-cores-frame-rate-limit: "顯示幀率限制 1-20(可減低卡頓)"
+controller-editor-cores-scale-modes: "原始|自適應|拉伸"
+type: "類型:"
+type-int: "整數"
+type-double: "小數"
+type-boolean: "布尔"
+type-string: "文字"
+type-string-array: "文字列表"
+type-location: "座標"
+type-list: "從列表中選擇"
+type-unknown: "未知"
+now-value: "目前值："
+ask-type: "請輸入一個%%"
+input-by-hand: "手動輸入"
+complete: "完成"
+ask-world: "世界："
+set: "設置"
+use-now-player-location: "使用目前玩家位置"
+use-now-block-location: "使用目前方塊位置"
+insert: "插入"
+click-to-set: "點擊來修改"
+throw-to-remove: "按下%%來刪除"
+input: "輸入"
+output: "輸出"
+command-error-arguments-count-error: "錯誤: 命令參數數量錯誤(應為: %%)"
+command-error-core-not-found: "錯誤: 找不到核心: %%"
+command-error-screen-facing-not-supported: "錯誤: 螢幕無法放置在方向 %%"
+command-error-unknown: "錯誤: 未知(%%)"
+command-error-screen-not-found: "錯誤: 找不到螢幕: %%"
+command-success-put-screen: "放置螢幕成功: %%"
+command-success-remove-screen: "移除螢幕成功: %%"
+command-success-found-opencl-device: "發現OpenCL設備: %%"
+command-error-number: "錯誤: 文字不是有效數字: %%"
+command-success-set-piece-size: "設定抖色分塊大小成功: %%x%%"
+command-error-core-is-notweb-browser: "錯誤: 螢幕核心不是瀏覽器(WebBrowser)"
+command-success-web-browser-openurl: "成功打開網址"
+command-success-web-browser-refresh: "成功重新整理網頁"
+command-success-input: "成功輸入文字"
+command-success-controller: "成功取得ScreenInMC控制器"
+command-error-is-not-player: "執行指令者不是玩家(該指令必須由玩家執行)"
+command-help: |-
+  放置螢幕:
+    /screen putScreen <世界名稱> <X> <Y> <Z> <方向> <長度> <寬度> <核心>
+  移除螢幕:
+    /screen removeScreen <螢幕UUID>
+  列出所有OpenCL設備:
+    /screen listDevices
+  設定抖色分塊大小(僅在使用OpenCL設備進行抖色時有效):
+    /screen setPieceSize <大小(1/2/4/8/16)>
+  瀏覽器核心操作:
+    開啟網址:
+      /screen browser <螢幕UUID> openurl <URL>
+    重新整理網頁:
+      /screen browser <螢幕UUID> refresh
+  將文字輸入螢幕:
+    /screen input <螢幕UUID> <文字> ...
+  ★取得ScreenInMC控制器:
+    /screen controller
+controller-editor-cores-video-player-name: "影片播放器(*.smv)"
+controller-editor-cores-video-player-details: |-
+  可用於播放 .smv 格式的影片(經過ScreenInMC預處理器處理後的影片)
+  使用 java -jar ScreenInMC.jar 可查看ScreenInMC預處理器的使用方法
+controller-editor-cores-video-player-loop: "循環"
+controller-editor-cores-video-player-path: "影片路徑"
+controller-editor-cores-video-player-pause: "暫停"
+image-viewer-load-failed: "無法載入該圖片"
+web-browser-install-chromium: "安裝Chromium"
+web-browser-uninstall-chromium: "移除Chromium"
+web-browser-tips: "在編輯器中選擇瀏覽器核心"
+web-browser-uninstall-on-exit: "請重新啟動伺服器以卸載Chromium"
+redstone-bridge-connected: "已連接至 %%"

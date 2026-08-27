@@ -102,21 +102,9 @@ public class NMSItemStackNew extends NMSItemStack{
                 UnbreakableConstructor = null;
             }
         }else{
-            // 26.x：unbreakable 变为 NonValued 组件（存在即 true），值用 Unit.INSTANCE 单例
+            // 26.x：unbreakable 变为 NonValued 组件（存在即 true），值用 Unit.INSTANCE 单例（Kotlin NMSCompat）
             UnbreakableConstructor = null;
-            try {
-                Class unitClass = CraftUtils.getMinecraftClass("Unit");
-                if(unitClass==null){
-                    for(Class c : CraftUtils.minecraftClasses){
-                        if(c.getName().equals("net.minecraft.util.Unit")) { unitClass = c; break; }
-                    }
-                }
-                if(unitClass!=null){
-                    java.lang.reflect.Field inst = unitClass.getField("INSTANCE");
-                    inst.setAccessible(true);
-                    UnbreakableUnitInstance = inst.get(null);
-                }
-            }catch (Exception ignored){}
+            UnbreakableUnitInstance = NMSCompat.getUnitInstance();
         }
         CustomModelDataClass = CraftUtils.getMinecraftClass("CustomModelData");
         try {
@@ -254,16 +242,11 @@ public class NMSItemStackNew extends NMSItemStack{
                 PatchedDataComponentMapSet.invoke(patchedDataComponentMap,UnbreakableDataComponentType,UnbreakableUnitInstance);
             }
             if(customModelData!=null && CustomModelDataConstructor!=null){
-                Object cmd;
-                if(CustomModelDataConstructor.getParameterCount()==1){
-                    cmd = CustomModelDataConstructor.newInstance((int)customModelData);
-                }else{
-                    // 26.x: (FloatList floats, BooleanList flags, List<String> strings, IntList colors)
-                    java.util.ArrayList<Float> floats = new java.util.ArrayList<>();
-                    floats.add(((Number)customModelData).floatValue());
-                    cmd = CustomModelDataConstructor.newInstance(floats,new java.util.ArrayList<>(),new java.util.ArrayList<>(),new java.util.ArrayList<>());
+                // Kotlin NMSCompat.newCustomModelData 处理 26.x 多参构造器
+                Object cmd = NMSCompat.newCustomModelData(CustomModelDataConstructor, ((Number)customModelData).intValue());
+                if(cmd!=null){
+                    PatchedDataComponentMapSet.invoke(patchedDataComponentMap,CustomModelDataDataComponentType,cmd);
                 }
-                PatchedDataComponentMapSet.invoke(patchedDataComponentMap,CustomModelDataDataComponentType,cmd);
             }
             if(name!=null){
                 PatchedDataComponentMapSet.invoke(patchedDataComponentMap,NameDataComponentType,name.toComponent());

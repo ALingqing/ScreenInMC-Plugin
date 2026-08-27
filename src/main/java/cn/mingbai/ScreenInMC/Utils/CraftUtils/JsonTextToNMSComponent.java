@@ -66,30 +66,18 @@ public class JsonTextToNMSComponent {
             ChatModifierClass = CraftUtils.getMinecraftClass("Style");
         }
         ChatModifierClassConstructor = null;
-        // 优先使用 Style.EMPTY + withXxx 链式构建（26.x 中 Style 无论类/接口都有 EMPTY 和 with 方法，比猜构造器参数可靠）
-        try {
-            StyleEmpty = ChatModifierClass.getField("EMPTY");
-        }catch (NoSuchFieldException e){
-            StyleEmpty = null;
-            for(Method m : ChatModifierClass.getDeclaredMethods()){
-                if(Modifier.isStatic(m.getModifiers())&&m.getParameterCount()==0&&m.getName().equals("empty")){
-                    StyleEmptyMethod = m;
-                    break;
-                }
-            }
-        }
-        for(Method m : ChatModifierClass.getDeclaredMethods()){
-            String n = m.getName();
-            if(m.getParameterCount()==1){
-                String pn = m.getParameters()[0].getType().getSimpleName();
-                if(n.equals("withColor")||pn.equals("TextColor")&&n.startsWith("with")) StyleWithColor = m;
-                if(n.equals("withBold")||(pn.equals("Boolean")&&n.equals("withBold"))) StyleWithBold = m;
-                if(n.equals("withItalic")||(pn.equals("Boolean")&&n.equals("withItalic"))) StyleWithItalic = m;
-                if(n.equals("withUnderlined")||(pn.equals("Boolean")&&n.equals("withUnderlined"))) StyleWithUnderlined = m;
-                if(n.equals("withStrikethrough")||(pn.equals("Boolean")&&n.equals("withStrikethrough"))) StyleWithStrikethrough = m;
-                if(n.equals("withObfuscated")||(pn.equals("Boolean")&&n.equals("withObfuscated"))) StyleWithObfuscated = m;
-                if(n.equals("withClickEvent")||(pn.equals("ClickEvent")&&n.startsWith("with"))) StyleWithClickEvent = m;
-            }
+        // 用 Kotlin 实现的 NMSCompat.collectStyleBuilder 收集 Style.EMPTY + withXxx（26.x 适配）
+        NMSCompat.StyleBuilder styleBuilder = NMSCompat.collectStyleBuilder(ChatModifierClass);
+        if(styleBuilder!=null){
+            StyleEmpty = styleBuilder.getEmptyField();
+            StyleEmptyMethod = styleBuilder.getEmptyMethod();
+            StyleWithColor = styleBuilder.getWithColor();
+            StyleWithBold = styleBuilder.getWithBold();
+            StyleWithItalic = styleBuilder.getWithItalic();
+            StyleWithUnderlined = styleBuilder.getWithUnderlined();
+            StyleWithStrikethrough = styleBuilder.getWithStrikethrough();
+            StyleWithObfuscated = styleBuilder.getWithObfuscated();
+            StyleWithClickEvent = styleBuilder.getWithClickEvent();
         }
         if(StyleEmpty==null && StyleEmptyMethod==null){
             // 无 EMPTY：回退到构造器（旧版本路径）
@@ -107,18 +95,10 @@ public class JsonTextToNMSComponent {
             ChatClickableClass = CraftUtils.getMinecraftClass("ClickEvent");
         }
         ChatClickableClassConstructor = CraftUtils.getConstructor(ChatClickableClass);
-        if(ChatClickableClassConstructor==null && ChatClickableClass!=null && ChatClickableClass.isInterface()){
-            // 26.x：ClickEvent 是 sealed 接口，子类是静态嵌套类（OpenUrl/RunCommand/SuggestCommand/CopyToClipboard/ChangePage 等）
-            // 收集各子类构造器，按 action 名称匹配
-            for(Class i : ChatClickableClass.getDeclaredClasses()){
-                if(i.isEnum() || i.isInterface()) continue;
-                for(Constructor j : i.getDeclaredConstructors()){
-                    if(j.getParameterCount()>=1){
-                        String actionKey = i.getSimpleName().toLowerCase().replace("_","");
-                        clickEventConstructors.put(actionKey, new Object[]{j, j.getParameterTypes()});
-                    }
-                }
-            }
+        if(ChatClickableClassConstructor==null && ChatClickableClass!=null){
+            // 26.x：ClickEvent 是 sealed 接口，用 Kotlin NMSCompat.collectClickEventConstructors 收集子类构造器
+            clickEventConstructors.clear();
+            clickEventConstructors.putAll(NMSCompat.collectClickEventConstructors(ChatClickableClass));
         }
         EnumClickActionClass = CraftUtils.getMinecraftClass("EnumClickAction");
         if(EnumClickActionClass==null){
@@ -320,37 +300,32 @@ public class JsonTextToNMSComponent {
     }
     private static Object getClickEvent(LangUtils.JsonText.ClickEvent event) throws Exception {
         if(event==null) return null;
-        // 26.x：ClickEvent 是 sealed 接口，按 action 匹配子类构造器
-        if(ChatClickableClassConstructor==null && !clickEventConstructors.isEmpty()){
-            String actionKey = (event.action==null?"":event.action).toLowerCase().replace("_","").replace(" ","");
-            Object[] entry = clickEventConstructors.get(actionKey);
-            if(entry==null){
-                // 常见别名映射：run_command/runcommand 等
-                String alias = null;
-                if(actionKey.contains("command")) alias = "runcommand";
-                else if(actionKey.contains("url")||actionKey.contains("link")) alias = "openurl";
-                else if(actionKey.contains("copy")) alias = "copytoclipboard";
-                else if(actionKey.contains("page")) alias = "changepage";
-                else if(actionKey.contains("suggest")) alias = "suggestcommand";
-                if(alias!=null) entry = clickEventConstructors.get(alias);
+        // 优先用 Kotlin NMSCompat.createClickEvent（26.x sealed 接口 ClickEvent 适配）
+        Object kotlinResult = NMSCompat.createClickEvent(clickEventConstructors, event.action, event.value);
+        if(kotlinResult!=null) return kotlinResult;
+        // 旧版本路径：ClickEvent 是类，用 (Action, String) 构造器
+        if(ChatClickableClassConstructor!=null && EnumClickActionClass!=null){
+            try {
+                Object action = Enum.valueOf(EnumClickActionClass, event.action.toUpperCase());
+                return ChatClickableClassConstructor.newInstance(action, event.value);
+            }catch (Exception e){
+                return null;
             }
-            if(entry!=null){
-                Constructor c = (Constructor) entry[0];
-                Class[] paramTypes = (Class[]) entry[1];
-                if(paramTypes.length==1 && paramTypes[0].equals(String.class)){
-                    return c.newInstance(event.value);
-                }else if(paramTypes.length==1 && paramTypes[0].equals(int.class)){
-                    try { return c.newInstance(Integer.parseInt(event.value)); }catch (Exception ignored){ return null; }
-                }else if(paramTypes.length==2 && paramTypes[0].equals(String.class) && paramTypes[1].equals(String.class)){
-                    return c.newInstance(event.action, event.value);
-                }
-            }
-            // 找不到匹配时安全返回 null（不抛异常）
-            return null;
         }
-        Object action = Enum.valueOf(EnumClickActionClass, event.action.toUpperCase());
-        Object chatClickable = ChatClickableClassConstructor.newInstance(action, event.value);
-        return chatClickable;
+        return null;
+    }
+    private static NMSCompat.StyleBuilder getStyleBuilder(){
+        NMSCompat.StyleBuilder builder = new NMSCompat.StyleBuilder();
+        builder.setEmptyField(StyleEmpty);
+        builder.setEmptyMethod(StyleEmptyMethod);
+        builder.setWithColor(StyleWithColor);
+        builder.setWithBold(StyleWithBold);
+        builder.setWithItalic(StyleWithItalic);
+        builder.setWithUnderlined(StyleWithUnderlined);
+        builder.setWithStrikethrough(StyleWithStrikethrough);
+        builder.setWithObfuscated(StyleWithObfuscated);
+        builder.setWithClickEvent(StyleWithClickEvent);
+        return builder;
     }
     public static Object jsonTextToComponent(LangUtils.JsonText text){
         try {
@@ -416,38 +391,22 @@ public class JsonTextToNMSComponent {
             }
             Object chatModifier = null;
             if(ChatModifierClassConstructor==null && (StyleEmpty!=null || StyleEmptyMethod!=null)){
-                // 26.x：Style 从 EMPTY 开始链式 withXxx 构建
-                Object style = null;
-                if(StyleEmpty!=null){
-                    style = StyleEmpty.get(null);
-                }else if(StyleEmptyMethod!=null){
-                    style = StyleEmptyMethod.invoke(null);
+                // 26.x：Style 从 EMPTY 开始链式 withXxx 构建（Kotlin NMSCompat.buildStyle）
+                Object clickEventObj = null;
+                if(text.clickEvent!=null){
+                    clickEventObj = NMSCompat.createClickEvent(clickEventConstructors, text.clickEvent.action, text.clickEvent.value);
+                    if(clickEventObj==null) clickEventObj = getClickEvent(text.clickEvent);
                 }
-                if(style!=null){
-                    if(text.color!=null && StyleWithColor!=null){
-                        style = StyleWithColor.invoke(style, getColor(text.color));
-                    }
-                    if(text.bold!=null && StyleWithBold!=null){
-                        style = StyleWithBold.invoke(style, text.bold);
-                    }
-                    if(text.italic!=null && StyleWithItalic!=null){
-                        style = StyleWithItalic.invoke(style, text.italic);
-                    }
-                    if(text.underlined!=null && StyleWithUnderlined!=null){
-                        style = StyleWithUnderlined.invoke(style, text.underlined);
-                    }
-                    if(text.strikethrough!=null && StyleWithStrikethrough!=null){
-                        style = StyleWithStrikethrough.invoke(style, text.strikethrough);
-                    }
-                    if(text.obfuscated!=null && StyleWithObfuscated!=null){
-                        style = StyleWithObfuscated.invoke(style, text.obfuscated);
-                    }
-                    if(text.clickEvent!=null && StyleWithClickEvent!=null){
-                        Object clickEvent = getClickEvent(text.clickEvent);
-                        if(clickEvent!=null) style = StyleWithClickEvent.invoke(style, clickEvent);
-                    }
-                    chatModifier = style;
-                }
+                chatModifier = NMSCompat.buildStyle(
+                        getStyleBuilder(),
+                        getColor(text.color),
+                        text.bold,
+                        text.italic,
+                        text.underlined,
+                        text.strikethrough,
+                        text.obfuscated,
+                        clickEventObj
+                );
             }
             else if(CraftUtils.minecraftVersion>=16 && ChatModifierClassConstructor!=null){
                 if(ChatModifierClassConstructor.getParameterCount()==10) {

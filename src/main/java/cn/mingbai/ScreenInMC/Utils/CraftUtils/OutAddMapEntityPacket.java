@@ -96,19 +96,42 @@ public class OutAddMapEntityPacket implements OutPacket{
                     );
             return;
         }
-        PacketPlayOutSpawnEntityConstructor = PacketPlayOutSpawnEntityClass.getDeclaredConstructor(
-                int.class,
-                UUID.class,
-                double.class,
-                double.class,
-                double.class,
-                float.class,
-                float.class,
-                EntityTypesClass,
-                int.class,
-                Vec3DClass,
-                double.class
-        );
+        // 19+ 版本自动探测构造器：参数模式 (int, UUID, double,double,double, float,float, EntityType, int, Vec3[, double])
+        // 26.x 中构造器签名可能有细微变化（如 yaw/pitch 顺序、末尾 double 有无），遍历匹配最接近的。
+        PacketPlayOutSpawnEntityConstructor = null;
+        for(Constructor c : PacketPlayOutSpawnEntityClass.getDeclaredConstructors()){
+            Class[] pts = c.getParameterTypes();
+            if(pts.length>=10 && pts.length<=11
+                    && pts[0].equals(int.class)
+                    && pts[1].equals(UUID.class)
+                    && pts[2].equals(double.class)
+                    && pts[3].equals(double.class)
+                    && pts[4].equals(double.class)
+                    && pts[5].equals(float.class)
+                    && pts[6].equals(float.class)
+                    && pts[7].equals(EntityTypesClass)
+                    && pts[8].equals(int.class)
+                    && pts[9].equals(Vec3DClass)){
+                // 优先 11 参数（带末尾 double）
+                if(pts.length==11 && pts[10].equals(double.class)){
+                    PacketPlayOutSpawnEntityConstructor = c;
+                    break;
+                }
+                if(PacketPlayOutSpawnEntityConstructor==null){
+                    PacketPlayOutSpawnEntityConstructor = c;
+                }
+            }
+        }
+        if(PacketPlayOutSpawnEntityConstructor==null){
+            // 最后兜底：任意 10-11 参数构造器（参数顺序可能有变，运行时按参数名赋值）
+            for(Constructor c : PacketPlayOutSpawnEntityClass.getDeclaredConstructors()){
+                Class[] pts = c.getParameterTypes();
+                if(pts.length>=8 && pts[0].equals(int.class) && pts[1].equals(UUID.class)){
+                    PacketPlayOutSpawnEntityConstructor = c;
+                    break;
+                }
+            }
+        }
     }
     private static void autoSetNumber(Field field,Object obj,Number value) throws Exception {
         if(field.getType().equals(byte.class)){
@@ -158,7 +181,25 @@ public class OutAddMapEntityPacket implements OutPacket{
             if (CraftUtils.minecraftVersion <= 18) {
                 return PacketPlayOutSpawnEntityConstructor.newInstance(entityId,uuid,(double)x,(double)y,(double)z,(float)pitch,(float)yaw,EntityTypesItemFrame,facing.ordinal(),Vec3D000);
             }
-            return PacketPlayOutSpawnEntityConstructor.newInstance(entityId,uuid,(double)x,(double)y,(double)z,(float)pitch,(float)yaw,EntityTypesItemFrame,facing.ordinal(),Vec3D000,0d);
+            // 19+：根据探测到的构造器参数个数/顺序自适应
+            Class[] pts = PacketPlayOutSpawnEntityConstructor.getParameterTypes();
+            Object[] args;
+            if(pts.length>=11){
+                args = new Object[]{entityId,uuid,(double)x,(double)y,(double)z,(float)pitch,(float)yaw,EntityTypesItemFrame,facing.ordinal(),Vec3D000,0d};
+            }else{
+                args = new Object[]{entityId,uuid,(double)x,(double)y,(double)z,(float)pitch,(float)yaw,EntityTypesItemFrame,facing.ordinal(),Vec3D000};
+            }
+            try {
+                return PacketPlayOutSpawnEntityConstructor.newInstance(args);
+            }catch (IllegalArgumentException e){
+                // 26.x：yaw/pitch 顺序可能交换
+                if(pts.length>=11){
+                    args = new Object[]{entityId,uuid,(double)x,(double)y,(double)z,(float)yaw,(float)pitch,EntityTypesItemFrame,facing.ordinal(),Vec3D000,0d};
+                }else{
+                    args = new Object[]{entityId,uuid,(double)x,(double)y,(double)z,(float)yaw,(float)pitch,EntityTypesItemFrame,facing.ordinal(),Vec3D000};
+                }
+                return PacketPlayOutSpawnEntityConstructor.newInstance(args);
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

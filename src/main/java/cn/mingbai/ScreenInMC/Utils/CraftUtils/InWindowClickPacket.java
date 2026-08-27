@@ -54,32 +54,46 @@ public class InWindowClickPacket implements InPacket {
                     }
                 }
             }else {
-                boolean skippedStateId = false;
+                // 优先按字段名匹配（mojmap 名），26.x 中字段名更稳定
                 for (Field i : PacketPlayInWindowClickClass.getDeclaredFields()) {
                     if(Modifier.isStatic(i.getModifiers())) continue;
-                    if (i.getType().equals(int.class)) {
-                        if (ContainerId == null) {ContainerId = i;continue;}
-                        if (SlotId == null) {
-                            if (skippedStateId) {
-                                SlotId = i;
-                            } else {
-                                skippedStateId = true;
-                                continue;
+                    String n = i.getName().toLowerCase();
+                    if(n.contains("container")||n.contains("window")) { if(ContainerId==null){ContainerId=i;continue;} }
+                    if(n.contains("slot")) { if(SlotId==null){SlotId=i;continue;} }
+                    if(n.contains("button")) { if(ButtonId==null){ButtonId=i;continue;} }
+                }
+                for (Field i : PacketPlayInWindowClickClass.getDeclaredFields()) {
+                    if(Modifier.isStatic(i.getModifiers())) continue;
+                    if(i.getType().equals(InventoryClickTypeClass)){ ActionId = i; break; }
+                }
+                if(ContainerId==null || SlotId==null || ButtonId==null){
+                    // 回退：按顺序 int 字段
+                    boolean skippedStateId = false;
+                    for (Field i : PacketPlayInWindowClickClass.getDeclaredFields()) {
+                        if(Modifier.isStatic(i.getModifiers())) continue;
+                        if (i.getType().equals(int.class)) {
+                            if (ContainerId == null) {ContainerId = i;continue;}
+                            if (SlotId == null) {
+                                if (skippedStateId) {
+                                    SlotId = i;
+                                } else {
+                                    skippedStateId = true;
+                                    continue;
+                                }
                             }
+                            if (ButtonId == null) {ButtonId = i;continue;}
                         }
-                        if (ButtonId == null) {ButtonId = i;continue;}
-                    }
-                    if (i.getType().equals(InventoryClickTypeClass)) {
-                        ActionId = i;
-                        break;
+                        if (i.getType().equals(InventoryClickTypeClass)) {
+                            if(ActionId==null){ ActionId = i; }
+                        }
                     }
                 }
             }
         }
-        ContainerId.setAccessible(true);
-        SlotId.setAccessible(true);
-        ActionId.setAccessible(true);
-        ButtonId.setAccessible(true);
+        if(ContainerId!=null) ContainerId.setAccessible(true);
+        if(SlotId!=null) SlotId.setAccessible(true);
+        if(ActionId!=null) ActionId.setAccessible(true);
+        if(ButtonId!=null) ButtonId.setAccessible(true);
 
 
     }

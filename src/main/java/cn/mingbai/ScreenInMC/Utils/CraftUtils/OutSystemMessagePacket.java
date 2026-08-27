@@ -20,6 +20,10 @@ public class OutSystemMessagePacket implements OutPacket {
 
     protected static void init() throws Exception {
         ClientboundSystemChatPacketClass = CraftUtils.getMinecraftClass("ClientboundSystemChatPacket");
+        if(ClientboundSystemChatPacketClass==null){
+            // 兜底：直接按全限定名加载（getMinecraftClass 的 jar 扫描可能漏掉某些类）
+            try { ClientboundSystemChatPacketClass = Class.forName("net.minecraft.network.protocol.game.ClientboundSystemChatPacket"); }catch (Throwable ignored){}
+        }
         IChatBaseComponentClass = CraftUtils.getMinecraftClass("IChatBaseComponent");
         if(IChatBaseComponentClass==null){
             IChatBaseComponentClass = CraftUtils.getMinecraftClass("Component");

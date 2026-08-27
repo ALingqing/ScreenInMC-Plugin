@@ -126,7 +126,10 @@ public class NMSItemStackNew extends NMSItemStack{
             }
         }
         if(CustomDataOf==null) throw new Exception("public static CustomData of(CompoundTag nbt) not found");
+        // 26.x 中 CustomData.of 是 private static，必须 setAccessible
+        CustomDataOf.setAccessible(true);
         CompoundTagConstructor = CompoundTagClass.getDeclaredConstructor();
+        try { CompoundTagConstructor.setAccessible(true); }catch (Exception ignored){}
         for(Method i : CompoundTagClass.getDeclaredMethods()){
             if(!Modifier.isStatic(i.getModifiers()) && i.getParameterCount()==2 &&
                     i.getParameters()[0].getType().equals(String.class)  && i.getParameters()[1].getType().equals(String.class)){
@@ -141,6 +144,8 @@ public class NMSItemStackNew extends NMSItemStack{
         if(CompoundTagPutString==null){
             throw new Exception("public void putString(String key, String value) not found");
         }
+        // 26.x 中 CompoundTag.putString 可能是 private，必须 setAccessible
+        try { CompoundTagPutString.setAccessible(true); }catch (Exception ignored){}
         for(Field i : CustomDataClass.getDeclaredFields()){
             if(i.getType().equals(CompoundTagClass)){
                 CustomDataTag = i;

@@ -224,15 +224,25 @@ public class Main extends JavaPlugin {
             }
         };
         runnable.runTaskAsynchronously(thisPlugin());
+        // 无论 NMS 反射初始化是否成功，都先注册指令，确保指令不会"全部失效"。
+        // CraftUtils.init() 失败仅降级部分核心功能，不再导致整个插件加载中断。
+        boolean craftUtilsInitFailed = false;
         try {
             CraftUtils.init();
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            craftUtilsInitFailed = true;
             e.printStackTrace();
-            getPluginLogger().warning("ScreenInMC load failed.");
-            return;
+            getPluginLogger().warning("ScreenInMC CraftUtils 初始化失败，部分核心功能(屏幕/浏览器/物品)可能不可用，但指令仍可用。");
         }
         thisPlugin.saveDefaultConfig();
         config = thisPlugin.getConfig();
+        // 尽早注册指令，避免后续任何初始化失败导致指令不可用。
+        try {
+            Bukkit.getServer().getPluginCommand("screen").setExecutor(new CommandListener());
+        }catch (Throwable e){
+            e.printStackTrace();
+            getPluginLogger().warning("ScreenInMC 指令注册失败: "+e.getMessage());
+        }
         int device = config.getInt("opencl-device");
         if(device!=-2&&device!=-4){
             loadNative();
@@ -258,7 +268,6 @@ public class Main extends JavaPlugin {
         Core.addCore(new VNCClient());
         Core.addCore(new VideoPlayer());
         Core.addCore(new WebBrowser());
-        Bukkit.getServer().getPluginCommand("screen").setExecutor(new CommandListener());
         EventListener.init();
         if (device == -3) {
             try {

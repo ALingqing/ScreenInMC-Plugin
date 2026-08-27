@@ -433,6 +433,23 @@ public class CommandListener implements TabExecutor {
                     }
                 }
             }
+            // putScreen 长度/宽度补全 (args[6]=长度, args[7]=宽度)
+            if (args.length == 7 || args.length == 8) {
+                if (args[0].equalsIgnoreCase("putScreen")) {
+                    sub2.add("1");
+                    sub2.add("2");
+                    sub2.add("3");
+                    sub2.add("4");
+                    sub2.add("8");
+                    sub2.add("16");
+                }
+            }
+            // browser openurl <URL> 提示
+            if (args.length == 4) {
+                if (args[0].equalsIgnoreCase("browser") && args[2].equalsIgnoreCase("openurl")) {
+                    sub2.add("https://");
+                }
+            }
             if (args.length == 9) {
                 if (args[0].equalsIgnoreCase("putScreen")) {
                     for (Core i : Core.getAllCore()) {

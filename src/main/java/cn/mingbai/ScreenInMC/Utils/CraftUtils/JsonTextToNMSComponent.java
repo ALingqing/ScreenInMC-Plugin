@@ -4,6 +4,7 @@ import cn.mingbai.ScreenInMC.Utils.LangUtils;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
 import static cn.mingbai.ScreenInMC.Utils.CraftUtils.CraftUtils.getMethod;
 
@@ -42,6 +43,7 @@ public class JsonTextToNMSComponent {
     static Class TranslatableContentsClass;
     static Class IChatMutableComponentClass;
     static Method IChatMutableComponentFromComponentContents;
+    static Method LiteralContentsClassFactory;
 
     public static void init() throws Exception {
         ChatModifierClass = CraftUtils.getMinecraftClass("ChatModifier");
@@ -94,7 +96,33 @@ public class JsonTextToNMSComponent {
                     }
                 }
                 if(LiteralContentsClassConstructor==null) {
-                    throw new RuntimeException("class LiteralContents not found.");
+                    // 26.x 兼容：LiteralContents 可能是 PlainTextContents 的嵌套 record，
+                    // 也可能只有静态工厂 PlainTextContents.create(String)。
+                    // 兜底 1：PlainTextContents.create(String) 静态工厂
+                    for(Method i:LiteralContentsClass.getDeclaredMethods()){
+                        if(Modifier.isStatic(i.getModifiers())&&i.getParameterCount()==1&&i.getParameters()[0].getType().equals(String.class)&&i.getReturnType().equals(LiteralContentsClass)){
+                            LiteralContentsClassFactory = i;
+                            LiteralContentsClassFactory.setAccessible(true);
+                            break;
+                        }
+                    }
+                    if(LiteralContentsClassFactory==null){
+                        // 兜底 2：遍历嵌套类找 create/literal/of 静态工厂
+                        literal2:
+                        for(Class i:LiteralContentsClass.getDeclaredClasses()){
+                            for(Method j:i.getDeclaredMethods()){
+                                if(Modifier.isStatic(j.getModifiers())&&j.getParameterCount()==1&&j.getParameters()[0].getType().equals(String.class)&&j.getReturnType().equals(i)){
+                                    LiteralContentsClassFactory = j;
+                                    LiteralContentsClassFactory.setAccessible(true);
+                                    LiteralContentsClass = i;
+                                    break literal2;
+                                }
+                            }
+                        }
+                    }
+                    if(LiteralContentsClassFactory==null) {
+                        throw new RuntimeException("class LiteralContents not found.");
+                    }
                 }
             }
             KeybindContentsClassConstructor = CraftUtils.getConstructor(KeybindContentsClass);
@@ -106,6 +134,21 @@ public class JsonTextToNMSComponent {
             for(Method i:IChatMutableComponentClass.getDeclaredMethods()){
                 if(i.getParameterCount()==1&&i.getParameters()[0].getType().getSimpleName().equals("ComponentContents")){
                     IChatMutableComponentFromComponentContents=i;
+                }
+            }
+            if(IChatMutableComponentFromComponentContents==null){
+                // 兜底：在 Component 类中查找 static create(ComponentContents)
+                Class componentClass = CraftUtils.getMinecraftClass("Component");
+                if(componentClass==null){
+                    componentClass = CraftUtils.getMinecraftClass("IChatBaseComponent");
+                }
+                if(componentClass!=null){
+                    for(Method i:componentClass.getDeclaredMethods()){
+                        if(Modifier.isStatic(i.getModifiers())&&i.getParameterCount()==1&&i.getParameters()[0].getType().getSimpleName().equals("ComponentContents")){
+                            IChatMutableComponentFromComponentContents=i;
+                            break;
+                        }
+                    }
                 }
             }
             if(IChatMutableComponentFromComponentContents==null) throw new RuntimeException("public static IChatMutableComponent ...(ComponentContents ...) not found.");
@@ -221,7 +264,11 @@ public class JsonTextToNMSComponent {
                 }
             }else {
                 if(CraftUtils.minecraftVersion>=19) {
-                    obj = LiteralContentsClassConstructor.newInstance(text.text == null ? "" : text.text);
+                    if(LiteralContentsClassConstructor!=null){
+                        obj = LiteralContentsClassConstructor.newInstance(text.text == null ? "" : text.text);
+                    }else{
+                        obj = LiteralContentsClassFactory.invoke(null,text.text == null ? "" : text.text);
+                    }
                 }else {
                     obj = ChatComponentTextClassConstructor.newInstance(text.text == null ? "" : text.text);
                 }

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.jar.JarEntry;
 
 public class CraftUtils {
+    static final java.util.logging.Logger LOGGER = java.util.logging.Logger.getLogger("ScreenInMC");
     static final String craftBukkit = "org.bukkit.craftbukkit";
     static final String minecraft = "net.minecraft";
     public static int minecraftVersion = 30;
@@ -104,6 +105,7 @@ public class CraftUtils {
                     subMinecraftVersion = minor;
                 }
             }
+            LOGGER.info("ScreenInMC 检测到 Minecraft 版本: " + versionSource + " -> minecraftVersion=" + minecraftVersion + ", subMinecraftVersion=" + subMinecraftVersion);
             String[] craftBukkitSubClasses = getSubClasses(craftBukkit);
                 for(String i: craftBukkitSubClasses){
                     if(i.endsWith("entity.CraftPlayer")){
@@ -195,11 +197,18 @@ public class CraftUtils {
 
 
             minecraftClasses = classes.toArray(new Class[0]);
-            JsonTextToNMSComponent.init();
-            NMSItemStack.init();
-            OutPacket.initAll();
-            InPacket.initAll();
-            PacketListener.init();
+            // 每个子模块独立初始化并容错：一个模块失败不应拖垮其他模块。
+            // 同时打印详细日志，便于在服务器上定位失败的具体模块。
+            try { JsonTextToNMSComponent.init(); }
+            catch (Throwable t){ LOGGER.warning("ScreenInMC JsonTextToNMSComponent.init() failed: "+t); }
+            try { NMSItemStack.init(); }
+            catch (Throwable t){ LOGGER.warning("ScreenInMC NMSItemStack.init() failed: "+t); }
+            try { OutPacket.initAll(); }
+            catch (Throwable t){ LOGGER.warning("ScreenInMC OutPacket.initAll() failed: "+t); }
+            try { InPacket.initAll(); }
+            catch (Throwable t){ LOGGER.warning("ScreenInMC InPacket.initAll() failed: "+t); }
+            try { PacketListener.init(); }
+            catch (Throwable t){ LOGGER.warning("ScreenInMC PacketListener.init() failed: "+t); }
             if(minecraftVersion<=12){
                 PacketPlayOutNamedSoundEffectClass = getMinecraftClass("PacketPlayOutNamedSoundEffect");
                 PacketPlayOutWorldParticlesClass = getMinecraftClass("PacketPlayOutWorldParticles");
@@ -289,12 +298,14 @@ public class CraftUtils {
         for(Class i:minecraftClasses){
             try {
                 if(allowSubClass){
-                    if(i.getSimpleName().equals(name)) {
+                    if(i.getSimpleName().equals(name) || i.getSimpleName().endsWith("$"+name)) {
                         return i;
                     }
                 }else{
                     String[] typeName = i.getTypeName().split("\\.");
-                    if(typeName[typeName.length-1].equals(name)){
+                    String last = typeName[typeName.length-1];
+                    // 支持嵌套类：例如 net.minecraft...PlainTextContents$LiteralContents 可匹配 "LiteralContents" 或 "PlainTextContents$LiteralContents"
+                    if(last.equals(name) || last.endsWith("$"+name)){
                         return i;
                     }
                 }
@@ -311,12 +322,13 @@ public class CraftUtils {
         for(Class i:minecraftClasses){
             try {
                 if(allowSubClass){
-                    if(i.getSimpleName().equals(name)) {
+                    if(i.getSimpleName().equals(name) || i.getSimpleName().endsWith("$"+name)) {
                         classes.add(i);
                     }
                 }else{
                     String[] typeName = i.getTypeName().split("\\.");
-                    if(typeName[typeName.length-1].equals(name)){
+                    String last = typeName[typeName.length-1];
+                    if(last.equals(name) || last.endsWith("$"+name)){
                         classes.add(i);
                     }
                 }

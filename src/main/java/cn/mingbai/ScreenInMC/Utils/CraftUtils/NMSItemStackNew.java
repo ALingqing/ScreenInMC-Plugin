@@ -74,7 +74,8 @@ public class NMSItemStackNew extends NMSItemStack{
             }
         }
         for(Method i : DataComponentTypeRegistry.getClass().getDeclaredMethods()){
-            if(!Modifier.isStatic(i.getModifiers())&&i.getParameterCount()==1&&i.getParameters()[0].getType().equals(ResourceLocationClass)&&i.getReturnType().equals(Object.class)){
+            // 26.x 中 Registry.get(Identifier) 返回 Optional<Holder<T>>，不再是 Object，因此不限定返回类型
+            if(!Modifier.isStatic(i.getModifiers())&&i.getParameterCount()==1&&i.getParameters()[0].getType().equals(ResourceLocationClass)&&i.getName().equals("get")){
                 RegistryGet = i;
                 RegistryGet.setAccessible(true);
             }
@@ -86,7 +87,13 @@ public class NMSItemStackNew extends NMSItemStack{
         NameDataComponentType = getDataComponentType("item_name");
         CustomDataDataDataComponentType = getDataComponentType("custom_data");
         ItemLoreClass = CraftUtils.getMinecraftClass("ItemLore");
-        ItemLoreConstructor = ItemLoreClass.getDeclaredConstructor(List.class,List.class);
+        try {
+            ItemLoreConstructor = ItemLoreClass.getDeclaredConstructor(List.class,List.class);
+        }catch (NoSuchMethodException e){
+            // 26.x 中 ItemLore 可能是单参数 List<Component> 的 record
+            ItemLoreConstructor = ItemLoreClass.getDeclaredConstructor(List.class);
+        }
+        ItemLoreConstructor.setAccessible(true);
         UnbreakableClass = CraftUtils.getMinecraftClass("Unbreakable");
         UnbreakableConstructor = UnbreakableClass.getDeclaredConstructor(boolean.class);
         CustomModelDataClass = CraftUtils.getMinecraftClass("CustomModelData");
@@ -158,13 +165,25 @@ public class NMSItemStackNew extends NMSItemStack{
         Object obj = RegistryGet.invoke(DataComponentTypeRegistry,location);
         if(obj.getClass().equals(Optional.class)){
             Optional optional = (Optional) obj;
-            Object reference = optional.get();
-            for(Field i : reference.getClass().getDeclaredFields()){
-                if(i.getType().equals(Object.class)){
-                    i.setAccessible(true);
-                    return i.get(reference);
+            if(optional.isPresent()){
+                Object reference = optional.get();
+                // 26.x 中 Registry.get 返回 Optional<Holder<T>>，需要解包 Holder 拿到 value
+                // 优先调用 value() 方法（Holder.value()）
+                try {
+                    Method valueMethod = reference.getClass().getMethod("value");
+                    if(valueMethod.getReturnType().equals(Object.class)||valueMethod.getParameterCount()==0){
+                        return valueMethod.invoke(reference);
+                    }
+                }catch (NoSuchMethodException ignored){}
+                for(Field i : reference.getClass().getDeclaredFields()){
+                    if(i.getType().equals(Object.class)){
+                        i.setAccessible(true);
+                        return i.get(reference);
+                    }
                 }
+                return reference;
             }
+            return null;
         }
         return obj;
     }
@@ -178,7 +197,11 @@ public class NMSItemStackNew extends NMSItemStack{
                 for (LangUtils.JsonText i : lore) {
                     lores.add(i.toComponent());
                 }
-                PatchedDataComponentMapSet.invoke(patchedDataComponentMap,LoreDataComponentType,ItemLoreConstructor.newInstance(lores,new ArrayList<>()));
+                if(ItemLoreConstructor.getParameterCount()==2){
+                    PatchedDataComponentMapSet.invoke(patchedDataComponentMap,LoreDataComponentType,ItemLoreConstructor.newInstance(lores,new ArrayList<>()));
+                }else{
+                    PatchedDataComponentMapSet.invoke(patchedDataComponentMap,LoreDataComponentType,ItemLoreConstructor.newInstance(lores));
+                }
             }
             PatchedDataComponentMapSet.invoke(patchedDataComponentMap,UnbreakableDataComponentType,UnbreakableConstructor.newInstance(unbreakable));
             if(customModelData!=null){

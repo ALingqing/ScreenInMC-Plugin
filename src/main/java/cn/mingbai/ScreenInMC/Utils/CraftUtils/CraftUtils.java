@@ -303,21 +303,39 @@ public class CraftUtils {
         return getMinecraftClass(name,false);
     }
     static Class getMinecraftClass(String name,boolean allowSubClass){
+        // 第一遍：精确匹配顶层类名（最可靠，避免嵌套类误匹配）
         for(Class i:minecraftClasses){
             try {
                 if(allowSubClass){
-                    if(i.getSimpleName().equals(name) || i.getSimpleName().endsWith("$"+name)) {
+                    if(i.getSimpleName().equals(name)) {
+                        return i;
+                    }
+                }else{
+                    String[] typeName = i.getTypeName().split("\\.");
+                    if(typeName[typeName.length-1].equals(name)){
+                        return i;
+                    }
+                }
+            }catch (IncompatibleClassChangeError e){}
+            catch (Error e){
+            }catch (Throwable t){
+            }
+        }
+        // 第二遍：嵌套类匹配（如 PlainTextContents$LiteralContents 匹配 "LiteralContents"）
+        // 仅当顶层类不存在时才用，且要求 name 是嵌套类的最后一个段
+        for(Class i:minecraftClasses){
+            try {
+                if(allowSubClass){
+                    if(i.getSimpleName().endsWith("$"+name) && !i.getSimpleName().contains("$"+name+"$")) {
                         return i;
                     }
                 }else{
                     String[] typeName = i.getTypeName().split("\\.");
                     String last = typeName[typeName.length-1];
-                    // 支持嵌套类：例如 net.minecraft...PlainTextContents$LiteralContents 可匹配 "LiteralContents" 或 "PlainTextContents$LiteralContents"
-                    if(last.equals(name) || last.endsWith("$"+name)){
+                    if(last.endsWith("$"+name) && !last.contains("$"+name+"$")){
                         return i;
                     }
                 }
-
             }catch (IncompatibleClassChangeError e){}
             catch (Error e){
             }catch (Throwable t){
@@ -330,13 +348,13 @@ public class CraftUtils {
         for(Class i:minecraftClasses){
             try {
                 if(allowSubClass){
-                    if(i.getSimpleName().equals(name) || i.getSimpleName().endsWith("$"+name)) {
+                    if(i.getSimpleName().equals(name) || (i.getSimpleName().endsWith("$"+name) && !i.getSimpleName().contains("$"+name+"$"))) {
                         classes.add(i);
                     }
                 }else{
                     String[] typeName = i.getTypeName().split("\\.");
                     String last = typeName[typeName.length-1];
-                    if(last.equals(name) || last.endsWith("$"+name)){
+                    if(last.equals(name) || (last.endsWith("$"+name) && !last.contains("$"+name+"$"))){
                         classes.add(i);
                     }
                 }

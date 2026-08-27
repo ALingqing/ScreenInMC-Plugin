@@ -65,34 +65,37 @@ public class JsonTextToNMSComponent {
         if(ChatModifierClass==null){
             ChatModifierClass = CraftUtils.getMinecraftClass("Style");
         }
-        ChatModifierClassConstructor = CraftUtils.getConstructor(ChatModifierClass);
-        if(ChatModifierClassConstructor!=null) {
-            ChatModifierClassConstructor.setAccessible(true);
-        }else if(ChatModifierClass!=null && ChatModifierClass.isInterface()){
-            // 26.x：Style 是接口，不可 new。用 Style.EMPTY + withXxx 链式构建。
-            // 收集静态 EMPTY 字段/方法和 with 方法
-            try {
-                StyleEmpty = ChatModifierClass.getField("EMPTY");
-            }catch (NoSuchFieldException e){
-                for(Method m : ChatModifierClass.getDeclaredMethods()){
-                    if(Modifier.isStatic(m.getModifiers())&&m.getParameterCount()==0&&m.getName().equals("empty")){
-                        StyleEmptyMethod = m;
-                        break;
-                    }
+        ChatModifierClassConstructor = null;
+        // 优先使用 Style.EMPTY + withXxx 链式构建（26.x 中 Style 无论类/接口都有 EMPTY 和 with 方法，比猜构造器参数可靠）
+        try {
+            StyleEmpty = ChatModifierClass.getField("EMPTY");
+        }catch (NoSuchFieldException e){
+            StyleEmpty = null;
+            for(Method m : ChatModifierClass.getDeclaredMethods()){
+                if(Modifier.isStatic(m.getModifiers())&&m.getParameterCount()==0&&m.getName().equals("empty")){
+                    StyleEmptyMethod = m;
+                    break;
                 }
             }
-            for(Method m : ChatModifierClass.getDeclaredMethods()){
-                String n = m.getName();
-                if(m.getParameterCount()==1){
-                    String pn = m.getParameters()[0].getType().getSimpleName();
-                    if(n.equals("withColor")||pn.equals("TextColor")&&n.startsWith("with")) StyleWithColor = m;
-                    if(n.equals("withBold")||(pn.equals("Boolean")&&n.equals("withBold"))) StyleWithBold = m;
-                    if(n.equals("withItalic")||(pn.equals("Boolean")&&n.equals("withItalic"))) StyleWithItalic = m;
-                    if(n.equals("withUnderlined")||(pn.equals("Boolean")&&n.equals("withUnderlined"))) StyleWithUnderlined = m;
-                    if(n.equals("withStrikethrough")||(pn.equals("Boolean")&&n.equals("withStrikethrough"))) StyleWithStrikethrough = m;
-                    if(n.equals("withObfuscated")||(pn.equals("Boolean")&&n.equals("withObfuscated"))) StyleWithObfuscated = m;
-                    if(n.equals("withClickEvent")||(pn.equals("ClickEvent")&&n.startsWith("with"))) StyleWithClickEvent = m;
-                }
+        }
+        for(Method m : ChatModifierClass.getDeclaredMethods()){
+            String n = m.getName();
+            if(m.getParameterCount()==1){
+                String pn = m.getParameters()[0].getType().getSimpleName();
+                if(n.equals("withColor")||pn.equals("TextColor")&&n.startsWith("with")) StyleWithColor = m;
+                if(n.equals("withBold")||(pn.equals("Boolean")&&n.equals("withBold"))) StyleWithBold = m;
+                if(n.equals("withItalic")||(pn.equals("Boolean")&&n.equals("withItalic"))) StyleWithItalic = m;
+                if(n.equals("withUnderlined")||(pn.equals("Boolean")&&n.equals("withUnderlined"))) StyleWithUnderlined = m;
+                if(n.equals("withStrikethrough")||(pn.equals("Boolean")&&n.equals("withStrikethrough"))) StyleWithStrikethrough = m;
+                if(n.equals("withObfuscated")||(pn.equals("Boolean")&&n.equals("withObfuscated"))) StyleWithObfuscated = m;
+                if(n.equals("withClickEvent")||(pn.equals("ClickEvent")&&n.startsWith("with"))) StyleWithClickEvent = m;
+            }
+        }
+        if(StyleEmpty==null && StyleEmptyMethod==null){
+            // 无 EMPTY：回退到构造器（旧版本路径）
+            ChatModifierClassConstructor = CraftUtils.getConstructor(ChatModifierClass);
+            if(ChatModifierClassConstructor!=null) {
+                ChatModifierClassConstructor.setAccessible(true);
             }
         }
         EnumChatFormatClass = CraftUtils.getMinecraftClass("EnumChatFormat");
@@ -412,8 +415,8 @@ public class JsonTextToNMSComponent {
                 obj=IChatMutableComponentFromComponentContents.invoke(null,obj);
             }
             Object chatModifier = null;
-            if(ChatModifierClassConstructor==null && ChatModifierClass!=null && ChatModifierClass.isInterface()){
-                // 26.x：Style 是接口，从 EMPTY 开始链式 withXxx 构建
+            if(ChatModifierClassConstructor==null && (StyleEmpty!=null || StyleEmptyMethod!=null)){
+                // 26.x：Style 从 EMPTY 开始链式 withXxx 构建
                 Object style = null;
                 if(StyleEmpty!=null){
                     style = StyleEmpty.get(null);
@@ -446,7 +449,7 @@ public class JsonTextToNMSComponent {
                     chatModifier = style;
                 }
             }
-            else if(CraftUtils.minecraftVersion>=16){
+            else if(CraftUtils.minecraftVersion>=16 && ChatModifierClassConstructor!=null){
                 if(ChatModifierClassConstructor.getParameterCount()==10) {
                     chatModifier = ChatModifierClassConstructor.newInstance(
                             getColor(text.color),
